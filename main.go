@@ -1,105 +1,114 @@
 package main
 
 import (
+	"fmt"
 	gc "github.com/gbin/goncurses"
+	"os/exec"
 )
 
-// func writeFiles(w *gc.Window, f []File) {
-// 	y, x := w.YX()
-// 	maxy, _ := w.MaxYX()
-// 	y++
-// 	for _, i := range f {
-// 		w.MovePrintf(y, x+1, i.getName())
-// 		if y+2 == maxy {
-// 			break
-// 		}
-// 		y++
-// 	}
-
-// }
-
-func writeFiles(f []File) []*gc.MenuItem {
-	ret := make([]*gc.MenuItem, len(f))
-	for i, val := range f {
-		ret[i], _ = gc.NewItem(val.getName(), "")
-	}
-	return ret
+func w3imgDisplay(wm *gc.Window, path string) {
+	_, cols := wm.YX()
+	cmd := fmt.Sprintf("echo -e '0;1;%d;%d;400;300;;;;;%s\\n4;\\n3;' | /usr/lib/w3m/w3mimgdisplay", cols*9, 100, path)
+	// print(cmd)
+	out, _ := exec.Command("bash", "-c", cmd).Output()
+	fmt.Printf("%s", out)
 }
-
-func initWindows(panels map[string]*gc.Panel) map[string]*gc.Panel {
+func main() {
 	stdscr, _ := gc.Init()
 	defer gc.End()
+
+	// gc.Raw(true)
+	// gc.Echo(false)
+	gc.Cursor(0)
+	stdscr.Keypad(true)
+	gc.InitPair(1, gc.C_RED, gc.C_BLACK)
+
+	// build the menu items
+	menu_items := getFiles()
+	items := make([]*gc.MenuItem, len(menu_items))
+	i := 0
+	for key, val := range menu_items {
+		items[i], _ = gc.NewItem(key, val)
+		defer items[i].Free()
+		i++
+	}
+
+	// create the menu
+	menu, _ := gc.NewMenu(items)
+	defer menu.Free()
 	rows, cols := stdscr.MaxYX()
-	// y, x := stdscr.YX()
 
-	f := getFiles()
-	items := writeFiles(f)
+	menuwin, _ := gc.NewWindow(rows, cols/2, 0, 0)
+	menuwin.Keypad(true)
 
-	file_list, _ := gc.NewMenu(items)
-	// menuwin, _ := gc.NewWindow(rows, cols/2, 0, 0)
-	// menuwin.Keypad(true)
+	menu.SetWindow(menuwin)
+	dwin := menuwin.Derived(60, 50, 3, 1)
+	menu.SubWindow(dwin)
+	menu.Mark(" * ")
+	menu.Option(gc.O_ONEVALUE, false)
 
-	// menuwin.Box(0, 0)
-	// file_list.SetWindow(menuwin)
-	// dwin := menuwin.Derived(10, 10, 20, 20)
-	// file_list.SubWindow(dwin)
-	// file_list.Format(5, 1)
-	// file_list.Mark(" * ")
-	file_list.Post()
-	defer file_list.UnPost()
-	file_list.Window().Refresh()
+	// Print centered menu title
+	y, x := menuwin.MaxYX()
+	title := "My Menu"
+	menuwin.Box(0, 0)
+	menuwin.ColorOn(1)
+	menuwin.MovePrint(1, (x/2)-(len(title)/2), title)
+	menuwin.ColorOff(1)
+	menuwin.MoveAddChar(2, 0, gc.ACS_LTEE)
+	menuwin.HLine(2, 1, gc.ACS_HLINE, x-3)
+	menuwin.MoveAddChar(2, x-2, gc.ACS_RTEE)
 
-	// dwin := menuwin.Derived(6, 38, 3, 1)
-	// file_list.SubWindow(dwin)
-	// file_list.Mark(" * ")
-
-	file_pan := gc.NewPanel(file_list.Window())
-	panels["files"] = file_pan
+	gc.NewPanel(menuwin)
 
 	pic_view, _ := gc.NewWindow(rows, cols/2, 0, cols/2)
 	pic_view.Box(0, 0)
 	// pic_view.MovePrintf(y+1, x+1, "TEST")
-	pic_pan := gc.NewPanel(pic_view)
-	panels["picture"] = pic_pan
-	return panels
+	gc.NewPanel(pic_view)
 
-}
+	y, x = stdscr.MaxYX()
+	stdscr.MovePrint(y-2, 1, "'q' to exit")
+	stdscr.Refresh()
 
-func Update() {
-	gc.UpdatePanels()
-	gc.Update()
-}
-func drawEverything(panels_inn map[string]*gc.Panel) {
-	// var panels = initWindows(panels_inn)
-	// Update()
-	// panels["picture"].Window().Erase()
-	// panels["files"].Window().Erase()
+	menu.Post()
+	defer menu.UnPost()
+	menuwin.Refresh()
+	pic_view.Refresh()
 
-	// panels["picture"].Window().NoutRefresh()
-	// panels["files"].Window().NoutRefresh()
-	// f := getFiles()
-	// file_list := panels["files"].Window()
-	// writeFiles(f)
-}
-
-func main() {
-	stdscr, _ := gc.Init()
-	defer gc.End()
-	gc.CBreak(true)
-	gc.Echo(true)
-
-	panels_init := make(map[string]*gc.Panel)
-
-	// drawEverything(stdscr)
-	initWindows(panels_init)
 	for {
-		// stdscr.Erase()
-		// drawEverything(panels)
-		Update()
+		gc.Update()
+		ch := menuwin.GetChar()
 
-		switch stdscr.GetChar() {
+		switch ch {
 		case 'q':
 			return
+		case gc.KEY_DOWN:
+			menu.Driver(gc.REQ_DOWN)
+			item := menu.Current(nil)
+			w3imgDisplay(pic_view, item.Description())
+			stdscr.Refresh()
+			menuwin.Refresh()
+		case gc.KEY_UP:
+			menu.Driver(gc.REQ_UP)
+			item := menu.Current(nil)
+			w3imgDisplay(pic_view, item.Description())
+			stdscr.Refresh()
+			menuwin.Refresh()
+		case ' ':
+			menu.Driver(gc.REQ_TOGGLE)
+		case gc.KEY_ENTER, gc.KEY_RETURN:
+			var list string
+			for _, item := range menu.Items() {
+				if item.Value() {
+					list += "\"" + item.Name() + "\" "
+					println(list)
+				}
+			}
+			stdscr.Move(20, 0)
+			stdscr.ClearToEOL()
+			stdscr.MovePrint(20, 40, list)
+			stdscr.Refresh()
+		default:
+			menu.Driver(gc.DriverActions[ch])
 		}
 	}
 }

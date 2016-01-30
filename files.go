@@ -33,16 +33,17 @@ func createFile(path string) File {
 	return File{name: name, path: path}
 }
 
-func createFiles(paths []string) []File {
-
-	var files []File
+func createFiles(paths []string) map[string]string {
+	files := make(map[string]string)
 	for _, i := range paths {
-		files = append(files, createFile(i))
+		file_split := strings.Split(i, "/")
+		name := file_split[len(file_split)-1]
+		files[name] = i
 	}
 	return files
 }
 
-func getFiles() []File {
+func getFiles() map[string]string {
 	glob_path := get_device_path()
 	files := glob_files(glob_path)
 	type_files := createFiles(files)
