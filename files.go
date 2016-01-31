@@ -44,13 +44,13 @@ func createFiles(paths []string) map[string]string {
 }
 
 func getFiles() map[string]string {
-	glob_path := get_device_path()
+	glob_path := getDevicePath()
 	files := glob_files(glob_path)
 	type_files := createFiles(files)
 	return type_files
 }
 
-func get_device_path() string {
+func getDevicePath() string {
 	cmd := "lsblk -l | grep mmcblk0p1 | awk '{ print $7 }'"
 	// fmt.Println(cmd)
 	// parts := strings.Fields(cmd)

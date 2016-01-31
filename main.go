@@ -7,21 +7,31 @@ import (
 )
 
 func w3imgDisplay(wm *gc.Window, path string) {
+	// stdscr, _ := gc.Init()
+	// defer gc.End()
+	// _, x := stdscr.MaxYX()
 	_, cols := wm.YX()
-	cmd := fmt.Sprintf("echo -e '0;1;%d;%d;400;300;;;;;%s\\n4;\\n3;' | /usr/lib/w3m/w3mimgdisplay", cols*9, 100, path)
+	_, maxcols := wm.MaxYX()
+	// getDismensions()
+	pixels := 8
+	// print(cols)
+	// println()
+	// print(pixels * cols)
+	w := maxcols * 7
+	h := float64(w) / 1.5
+	cmd := fmt.Sprintf("echo -e '0;1;%d;%d;%d;%d;;;;;%s\\n4;\\n3;' | /usr/lib/w3m/w3mimgdisplay", (cols+3)*pixels, 50, w, int(h), path)
 	// print(cmd)
 	out, _ := exec.Command("bash", "-c", cmd).Output()
 	fmt.Printf("%s", out)
 }
+
 func main() {
 	stdscr, _ := gc.Init()
 	defer gc.End()
-
-	// gc.Raw(true)
-	// gc.Echo(false)
+	gc.Raw(true)
+	gc.Echo(false)
 	gc.Cursor(0)
-	stdscr.Keypad(true)
-	gc.InitPair(1, gc.C_RED, gc.C_BLACK)
+	// stdscr.Keypad(true)
 
 	// build the menu items
 	menu_items := getFiles()
@@ -42,7 +52,7 @@ func main() {
 	menuwin.Keypad(true)
 
 	menu.SetWindow(menuwin)
-	dwin := menuwin.Derived(60, 50, 3, 1)
+	dwin := menuwin.Derived(20, 40, 3, 1)
 	menu.SubWindow(dwin)
 	menu.Mark(" * ")
 	menu.Option(gc.O_ONEVALUE, false)
@@ -81,13 +91,58 @@ func main() {
 		switch ch {
 		case 'q':
 			return
-		case gc.KEY_DOWN:
+
+		case gc.KEY_DOWN, 'j':
 			menu.Driver(gc.REQ_DOWN)
 			item := menu.Current(nil)
 			w3imgDisplay(pic_view, item.Description())
 			stdscr.Refresh()
 			menuwin.Refresh()
-		case gc.KEY_UP:
+
+		// Upload
+		case 'u':
+
+			msg := "Album: "
+			row, col := stdscr.MaxYX()
+			row, col = (row/2)-1, (col-len(msg))/2
+
+			gc.Raw(false)
+			gc.Echo(true)
+			gc.Cursor(1)
+			input, _ := gc.NewWindow(3, 30, 20, 10)
+			input.Box(0, 0)
+			input.MovePrint(1, 1, msg)
+			panel := gc.NewPanel(input)
+			panel.Top()
+			str, err := input.GetString(10)
+			if err != nil {
+				println("error")
+			}
+			panel.Delete()
+
+			gc.Raw(true)
+			gc.Echo(false)
+			gc.Cursor(0)
+			pic_view.Refresh()
+			menuwin.Refresh()
+			stdscr.Refresh()
+
+			var list []string
+			for _, item := range menu.Items() {
+				if item.Value() {
+					list = append(list, item.Description())
+				}
+			}
+			r := createRsync()
+			r = r.addFiles(list)
+			str = r.Upload(str)
+			cmdUpload(str)
+		// Select all
+		case 'V':
+			for _, item := range menu.Items() {
+				item.Selectable(true)
+			}
+		case gc.KEY_UP, 'k':
 			menu.Driver(gc.REQ_UP)
 			item := menu.Current(nil)
 			w3imgDisplay(pic_view, item.Description())
@@ -95,18 +150,9 @@ func main() {
 			menuwin.Refresh()
 		case ' ':
 			menu.Driver(gc.REQ_TOGGLE)
+			menu.Driver(gc.REQ_DOWN)
+
 		case gc.KEY_ENTER, gc.KEY_RETURN:
-			var list string
-			for _, item := range menu.Items() {
-				if item.Value() {
-					list += "\"" + item.Name() + "\" "
-					println(list)
-				}
-			}
-			stdscr.Move(20, 0)
-			stdscr.ClearToEOL()
-			stdscr.MovePrint(20, 40, list)
-			stdscr.Refresh()
 		default:
 			menu.Driver(gc.DriverActions[ch])
 		}
