@@ -1,9 +1,12 @@
 package main
 
 import (
+	"bufio"
 	"fmt"
+	gc "github.com/gbin/goncurses"
 	"os/exec"
 	"strings"
+	"time"
 )
 
 type Rsyncs interface {
@@ -61,16 +64,39 @@ func (r Rsync) Upload(folder string) string {
 	return ret
 }
 
-func cmdUpload(cmd string) {
-	parts := strings.Fields(cmd)
-	head := parts[0]
-	parts = parts[1:len(parts)]
-	println(head)
-	fmt.Printf("%v", parts)
+func (w Interface) cmdUpload(msg string, pan *gc.Panel) {
+	cmd := exec.Command("bash", "-c", msg)
 
-	out, err := exec.Command(head, parts...).Output()
-	if err != nil {
-		fmt.Println(err)
+	stdout, _ := cmd.StdoutPipe()
+	cmd.Start()
+	rd := bufio.NewReader(stdout)
+	size := 9
+	i := 0
+	for {
+		byt, _, _ := rd.ReadLine()
+		str := string(byt)
+
+		if str == "" {
+			break
+		}
+
+		pan.Window().Scroll(1)
+
+		if i > 13 {
+			break
+		}
+		if len(str) >= 55 {
+			str = str[:55]
+		}
+		pan.Window().Box(0, 0)
+		pan.Window().MovePrintln(size, 1, string(str))
+		pan.Window().Refresh()
+		w.Refresh()
+		i++
+		if str == "" {
+			break
+		}
+		time.Sleep(500 * time.Millisecond)
 	}
-	fmt.Println(out)
+	pan.Delete()
 }

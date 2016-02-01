@@ -51,9 +51,8 @@ func getFiles() map[string]string {
 }
 
 func getDevicePath() string {
+	// conf := getConfig()
 	cmd := "lsblk -l | grep mmcblk0p1 | awk '{ print $7 }'"
-	// fmt.Println(cmd)
-	// parts := strings.Fields(cmd)
 	out, err := exec.Command("sh", "-c", cmd).Output()
 	if err != nil {
 		fmt.Println("error occured")
